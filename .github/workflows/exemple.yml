@@ -1,0 +1,28 @@
+name: Test Workflow Automatique
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  test-automation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Recuperation du depot
+        uses: actions/checkout@v4
+
+      - name: 2. Verification de l'environnement
+        run: |
+          echo "Le serveur GitHub est pret."
+          node -v
+          python --version
+
+      - name: 3. Simulation de Tests QA
+        run: |
+          echo "Lancement des tests automatises..."
+          sleep 5
+          echo "Tous les tests sont au vert (Success) !"
