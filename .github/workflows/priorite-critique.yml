@@ -1,41 +1,59 @@
-name: "Alerte Priorité Critique v3"
+name: "Alerte Priorité Critique"
+
+
 
 on:
+
   issues:
-    types: [opened, labeled]
+
+    types: [labeled]
+
+
 
 jobs:
+
   gestion-priorite:
-    if: github.event.label.name == 'Critical' || contains(github.event.issue.labels.*.name, 'Critical')
+
+    if: github.event.label.name == 'Critical'
+
     runs-on: ubuntu-latest
-    
+
     permissions:
+
       issues: write
-      repository-projects: write
 
     steps:
-      - name: 1. Assigner et Commenter
+
+      - name: Assigner le Lead Dev et commenter
+
         uses: actions/github-script@v7
+
         with:
+
           script: |
-            // Assigne l'utilisateur (Toi)
-            await github.rest.issues.addAssignees({
+
+            github.rest.issues.addAssignees({
+
               owner: context.repo.owner,
+
               repo: context.repo.repo,
+
               issue_number: context.issue.number,
-              assignees: [context.repo.owner]
-            });
-            // Message d'alerte
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: "🚨 **Alerte :** Ticket Critique détecté. Assignation faite. (Note: Si le mouvement échoue, vérifiez les accès au projet)."
+
+              assignees: [context.repo.owner] // S'assigne à toi-même par défaut
+
             });
 
-     - name: 2. Forcer le mouvement vers Todo
-        uses: actions/add-to-project@v1.0.1
-        with:
-          # Ton URL de projet exacte d'après tes captures
-          project-url: https://github.com/users/Ghazi-Kriaa/projects/4
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            
+
+            github.rest.issues.createComment({
+
+              owner: context.repo.owner,
+
+              repo: context.repo.repo,
+
+              issue_number: context.issue.number,
+
+              body: "🚨 **Alerte :** Ce ticket a été marqué comme Critique. Assignation automatique effectuée."
+
+            });
