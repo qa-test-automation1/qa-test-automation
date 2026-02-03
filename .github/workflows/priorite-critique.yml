@@ -18,24 +18,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Assigner l'utilisateur
+            // Assigne l'utilisateur (Toi)
             await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               assignees: [context.repo.owner]
             });
-            // Ajouter le commentaire 🚨
+            // Message d'alerte
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "🚨 **Alerte :** Ticket Critique détecté. Assignation effectuée."
+              body: "🚨 **Alerte :** Ticket Critique détecté. Assignation faite. (Note: Si le mouvement échoue, vérifiez les accès au projet)."
             });
 
-      - name: 2. Forcer le mouvement vers Todo
+      - name: 2. Ajouter au Projet et déplacer
         uses: actions/add-to-project@v1.0.1
         with:
-          # Ton URL de projet exacte d'après tes captures
           project-url: https://github.com/users/Ghazi-Kriaa/projects/4
           github-token: ${{ secrets.GITHUB_TOKEN }}
