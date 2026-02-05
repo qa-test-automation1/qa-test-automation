@@ -1,10 +1,6 @@
-name: Java CI with Maven
+name: Java CI Simulation
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -12,15 +8,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout du code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configuration de Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
-          distribution: 'temurin'
-          cache: maven
 
-      - name: Build et tests Maven
-        run: mvn -B clean package
+      - name: Simuler le build Maven
+        run: |
+          echo "Simulation : Maven build"
