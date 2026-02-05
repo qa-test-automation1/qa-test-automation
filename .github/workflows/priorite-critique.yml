@@ -37,6 +37,6 @@ jobs:
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           user: Ghazi-Kriaa
-          project_number: 4
+          project_id: 20472089
           resource_node_id: ${{ github.event.issue.node_id }}
           status_value: "Todo"
