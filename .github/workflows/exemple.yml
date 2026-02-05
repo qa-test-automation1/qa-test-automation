@@ -12,17 +12,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. Recuperation du depot
+      - name: 1. Récupération du dépôt
         uses: actions/checkout@v4
 
-      - name: 2. Verification de l'environnement
+      - name: 2. Vérification de l’environnement
         run: |
-          echo "Le serveur GitHub est pret."
+          echo "Le runner GitHub est prêt."
           node -v
           python --version
 
-      - name: 3. Simulation de Tests QA
+      - name: 3. Simulation des tests QA
         run: |
-          echo "Lancement des tests automatises..."
+          echo "Lancement des tests automatisés..."
           sleep 5
-          echo "Tous les tests sont au vert (Success) !"
+          echo "Résultat : Tous les tests sont au vert ✅"
