@@ -53,4 +53,4 @@ jobs:
           # ON UTILISE LE NUMÉRO DU PROJET (1 d'après tes messages)
           project_id: 1
           resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "In Progress"
+          status_value: "Critical"
