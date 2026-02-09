@@ -1,10 +1,9 @@
-name: Nettoyage du Backlog (Issues Stale)
+name: Nettoyage du Backlog (Stale + Auto Close)
 
 on:
   schedule:
-    # Tous les dimanches à 02:00
-    - cron: '0 2 * * 0'
-  workflow_dispatch: # Lancement manuel possible
+    - cron: '0 2 * * 0' # chaque dimanche
+  workflow_dispatch:
 
 jobs:
   cleanup:
@@ -15,7 +14,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Marquer les issues inactives comme "stale"
+      - name: Marquer et fermer les issues inactives
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -34,18 +33,38 @@ jobs:
             );
 
             for (const issue of issues) {
-              if (issue.pull_request) continue; // Ignorer les PR
+              if (issue.pull_request) continue;
 
               const updatedAt = new Date(issue.updated_at);
 
-              if (updatedAt < sixMonthsAgo && !issue.labels.some(l => l.name === "stale")) {
-                await github.rest.issues.addLabels({
+              if (updatedAt < sixMonthsAgo) {
+
+                // 1️⃣ Ajouter le label stale si absent
+                if (!issue.labels.some(l => l.name === "stale")) {
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ["stale"]
+                  });
+                }
+
+                // 2️⃣ Commentaire automatique
+                await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  labels: ["stale"]
+                  body: "⏳ Ce ticket est resté inactif pendant plus de 6 mois et a été automatiquement archivé."
                 });
 
-                console.log(`Issue #${issue.number} marquée comme stale`);
+                // 3️⃣ FERMETURE AUTOMATIQUE 🔥
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: "closed"
+                });
+
+                console.log(`Issue #${issue.number} fermée automatiquement`);
               }
             }
