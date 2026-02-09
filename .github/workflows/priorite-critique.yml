@@ -2,16 +2,13 @@ name: "Alerte Priorité Critique v2"
 
 on:
   issues:
-    # On écoute quand un label est ajouté ou quand l'issue est créée avec un label
     types: [opened, labeled]
 
 jobs:
   gestion-priorite:
-    # IMPORTANT : Le workflow ne s'exécute QUE si le label est "Critical"
     if: github.event.label.name == 'Critical' || contains(github.event.issue.labels.*.name, 'Critical')
     runs-on: ubuntu-latest
     
-    # On donne les droits pour modifier l'Issue ET le Projet
     permissions:
       issues: write
       repository-projects: write
@@ -21,6 +18,7 @@ jobs:
       - name: 1. Assigner et Commenter
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.PROJECT_AUTOMATION }}
           script: |
             await github.rest.issues.addAssignees({
               owner: context.repo.owner,
@@ -32,15 +30,16 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "🚨 **Alerte :** Ticket Critique détecté. Assignation faite et déplacement vers 'Todo' en cours..."
+              body: "🚨 **Alerte :** Ticket Critique détecté. Assignation faite et mise à jour du projet en cours..."
             });
 
-      - name: 2. Déplacer vers la colonne Todo
+      - name: 2. Déplacer vers In Progress
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          gh_token: ${{ secrets.PROJECT_AUTOMATION }}
+          # ON GARDE UNIQUEMENT L'ORGANISATION
           organization: qa-test-automation-org
-          user: Ghazi-Kriaa
+          # ON UTILISE LE NUMÉRO DU PROJET (1 d'après tes messages)
           project_id: 1
           resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "Todo"
+          status_value: "In Progress"
