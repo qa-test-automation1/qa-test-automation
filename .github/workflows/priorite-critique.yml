@@ -6,6 +6,7 @@ on:
 
 jobs:
   gestion-priorite:
+    # On s'assure que le job ne tourne que pour le label 'Critical'
     if: github.event.label.name == 'Critical' || contains(github.event.issue.labels.*.name, 'Critical')
     runs-on: ubuntu-latest
 
@@ -17,17 +18,15 @@ jobs:
       - name: Assignation et Mise à jour Projet
         uses: actions/github-script@v7
         with:
-          # --- MODIFICATION ICI : On utilise ton nouveau Secret ---
-          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }} 
+          # --- Utilisation de ton nom de secret exact ---
+          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const issueNumber = context.issue.number;
             const issueNodeId = context.payload.issue.node_id;
 
-            console.log(`Traitement de l'issue #${issueNumber}...`);
-
-            // 1. Assignation
+            // 1. Assignation de l'owner du repo
             await github.rest.issues.addAssignees({
               owner,
               repo,
@@ -35,18 +34,18 @@ jobs:
               assignees: [owner]
             });
 
-            // 2. Commentaire
+            // 2. Ajout du commentaire
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: issueNumber,
-              body: "🚨 **Alerte Critique** : Issue assignée et déplacée dans 'In Progress'."
+              body: "🚨 **Alerte Critique** : Issue assignée automatiquement et déplacée dans le statut 'In Progress'."
             });
 
-            // 3. Mise à jour du Projet V2
+            // 3. Logique GraphQL pour le Projet V2
             const projectNumber = 1;
             const orgName = "qa-test-automation-org";
-
+            
             const query = `
               query($org: String!, $number: Int!) {
                 organization(login: $org) {
@@ -65,17 +64,20 @@ jobs:
                 }
               }`;
 
-            const projectData = await github.graphql(query, { org: orgName, number: projectNumber });
-            
-            if (!projectData.organization.projectV2) {
-              throw new Error(`Projet #${projectNumber} introuvable dans l'org ${orgName}. Vérifiez les permissions du PAT.`);
-            }
+            const projectData = await github.graphql(query, {
+              org: orgName,
+              number: projectNumber
+            });
 
             const project = projectData.organization.projectV2;
+            if (!project) {
+                throw new Error("Projet introuvable. Vérifiez que le PAT a les droits sur l'organisation.");
+            }
+
             const statusField = project.fields.nodes.find(f => f.name === "Status");
             const inProgressOption = statusField.options.find(o => o.name === "In Progress");
 
-            // Ajout/Récupération de l'item dans le projet
+            // Ajout de l'issue au projet
             const addItemMutation = `
               mutation($projectId: ID!, $contentId: ID!) {
                 addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -88,7 +90,7 @@ jobs:
               contentId: issueNodeId
             });
 
-            // Changement du statut
+            // Mise à jour du statut vers "In Progress"
             const updateStatusMutation = `
               mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
                 updateProjectV2ItemFieldValue(input: {
@@ -106,4 +108,4 @@ jobs:
               optionId: inProgressOption.id
             });
             
-            console.log("Succès : Statut mis à jour sur 'In Progress'");
+            console.log("Succès : Issue traitée et déplacée.");
