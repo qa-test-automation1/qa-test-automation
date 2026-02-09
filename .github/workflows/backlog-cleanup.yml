@@ -1,0 +1,51 @@
+name: Nettoyage du Backlog (Issues Stale)
+
+on:
+  schedule:
+    # Tous les dimanches à 02:00
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Lancement manuel possible
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Marquer les issues inactives comme "stale"
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+            const issues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                per_page: 100
+              }
+            );
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue; // Ignorer les PR
+
+              const updatedAt = new Date(issue.updated_at);
+
+              if (updatedAt < sixMonthsAgo && !issue.labels.some(l => l.name === "stale")) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  labels: ["stale"]
+                });
+
+                console.log(`Issue #${issue.number} marquée comme stale`);
+              }
+            }
