@@ -17,8 +17,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const now = new Date();
-            const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+           const sixMonthsAgo = new Date();
+           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
             const issues = await github.paginate(
               github.rest.issues.listForRepo,
@@ -35,7 +35,7 @@ jobs:
 
               const updatedAt = new Date(issue.updated_at);
 
-              if (updatedAt < twoMinutesAgo) {
+              if (updatedAt < sixMonthsAgo) {
 
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
