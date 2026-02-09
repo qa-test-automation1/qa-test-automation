@@ -36,7 +36,7 @@ jobs:
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
-          organization: qa-test-automation   # ⚠️ METS LE NOM EXACT DE L’ORG
+          organization: qa-test-automation1   # ⚠️ METS LE NOM EXACT DE L’ORG
           project_id: 20472089               # ID interne
           resource_node_id: ${{ github.event.issue.node_id }}
           status_value: "Todo"
