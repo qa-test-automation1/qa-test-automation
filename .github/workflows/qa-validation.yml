@@ -1,0 +1,28 @@
+name: Validation QA
+
+on:
+  project_card:
+    types: [moved]
+
+jobs:
+  assign-qa:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      repository-projects: write
+      contents: read
+
+    steps:
+      - name: Assigner le responsable QA quand colonne Done
+        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          organization: qa-test-automation       # OU user si repo perso
+          project_id: 1              # ID GraphQL de ton Project v2
+          resource_node_id: ${{ github.event.project_card.content_node_id }}
+          status_value: "Done"
+          operation_mode: "set_custom_field_values"
+          custom_field_values: |
+            {
+              "Assigné": "NomUtilisateursQA"    # le login GitHub de la personne QA
+            }
