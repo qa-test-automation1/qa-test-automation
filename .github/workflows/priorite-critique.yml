@@ -12,31 +12,50 @@ jobs:
     permissions:
       issues: write
       contents: read
+      projects: write
 
     steps:
-      - name: 1. Assignation automatique et commentaire
+      - name: 1️⃣ Assignation automatique selon le label
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              assignees: [context.repo.owner]
-            });
+            const labelAssignees = {
+              "Critical": "ghazi-qa",
+              "High": "tester1",
+              "Medium": "tester2"
+            };
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: "🚨 **Alerte Critique** : Issue assignée automatiquement."
-            });
+            const labels = context.payload.issue.labels.map(l => l.name);
+            let assignee = null;
 
-      - name: 2. Déplacement vers In Progress (Project v2)
+            for (const label of labels) {
+              if (labelAssignees[label]) {
+                assignee = labelAssignees[label];
+                break;
+              }
+            }
+
+            if (assignee) {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                assignees: [assignee]
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `🚨 **Issue ${labels.join(", ")}** assignée automatiquement à **@${assignee}**`
+              });
+            }
+
+      - name: 2️⃣ Déplacement vers Todo (Project v2)
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
-          organization: qa-test-automation-org   # ⚠️ METS LE NOM EXACT DE L’ORG
-          project_id: 1               # ID interne
+          organization: qa-test-automation-org
+          project_id: 1          # 🔴 REMPLACE PAR TON ID EXACT
           resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "In Progress"
+          status_value: "Todo"
