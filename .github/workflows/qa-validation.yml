@@ -1,12 +1,16 @@
 name: Validation QA
 
 on:
-  project_card:
-    types: [moved]
+  # Utilise l'événement des nouveaux projets (v2)
+  project_item:
+    types: [edited, converted]
 
 jobs:
   assign-qa:
     runs-on: ubuntu-latest
+    # Vérifie si le changement concerne bien le champ 'Status' et si la valeur est 'Done'
+    if: github.event.changes.field_value.field_name == 'Status' && github.event.project_item.content_node_id != null
+    
     permissions:
       issues: write
       repository-projects: write
@@ -17,12 +21,11 @@ jobs:
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
           gh_token: ${{ secrets.PROJECT_AUTOMATION }}
-          organization: qa-test-automation       # OU user si repo perso
-          project_id: 1              # ID GraphQL de ton Project v2
-          resource_node_id: ${{ github.event.project_card.content_node_id }}
-          status_value: "Done"
+          organization: "qa-test-automation" # Remplacez par votre organisation ou user
+          project_id: 1                      # Vérifiez bien qu'il s'agit de l'ID numérique
+          resource_node_id: ${{ github.event.project_item.content_node_id }}
           operation_mode: "set_custom_field_values"
           custom_field_values: |
             {
-              "Assigné": "Ghazi-Kriaa"    # le login GitHub de la personne QA
+              "Assigné": "Ghazi-Kriaa"
             }
