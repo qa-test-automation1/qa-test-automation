@@ -41,6 +41,6 @@ jobs:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           organization: qa-test-automation-org
           user: Ghazi-Kriaa
-          project_id: 4
+          project_id: 1
           resource_node_id: ${{ github.event.issue.node_id }}
           status_value: "Todo"
