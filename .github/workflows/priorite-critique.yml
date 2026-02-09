@@ -37,6 +37,6 @@ jobs:
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           organization: qa-test-automation-org   # ⚠️ METS LE NOM EXACT DE L’ORG
-         # project_id: 20472089               # ID interne
+          project_id: 1               # ID interne
           resource_node_id: ${{ github.event.issue.node_id }}
           status_value: "Todo"
