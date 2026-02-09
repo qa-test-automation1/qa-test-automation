@@ -18,7 +18,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           # --- MODIFICATION ICI : On utilise ton nouveau Secret ---
-          github-token: ${{ secrets.MY_PROJECT_TOKEN }} 
+          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }} 
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
