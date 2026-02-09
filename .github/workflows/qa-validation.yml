@@ -1,21 +1,15 @@
-name: Validation QA
-
 on:
   issues:
-    types: [labeled]
+    types: [closed]
 
 jobs:
   validation-qa:
-    if: github.event.label.name == 'Done'
     runs-on: ubuntu-latest
-
     permissions:
       issues: write
-      repository-projects: write
-      contents: read
 
     steps:
-      - name: 1. Assigner le responsable QA
+      - name: Assigner le responsable QA
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PROJECT_AUTOMATION }}
@@ -33,14 +27,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: "✅ Ticket passé à **Done** — Assigné automatiquement au responsable QA."
+              body: "✅ Ticket fermé — Assigné automatiquement au responsable QA."
             });
-
-      - name: 2. Mettre le status du projet à Done
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
-        with:
-          gh_token: ${{ secrets.PROJECT_AUTOMATION }}
-          organization: qa-test-automation-org
-          project_id: 1
-          resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "Done"
