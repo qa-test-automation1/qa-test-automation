@@ -16,7 +16,7 @@ jobs:
       - name: Assigner le responsable QA quand colonne Done
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          gh_token: ${{ secrets.PROJECT_AUTOMATION }}
           organization: qa-test-automation       # OU user si repo perso
           project_id: 1              # ID GraphQL de ton Project v2
           resource_node_id: ${{ github.event.project_card.content_node_id }}
