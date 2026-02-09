@@ -32,11 +32,11 @@ jobs:
               body: "🚨 **Alerte Critique** : Issue assignée automatiquement."
             });
 
-      - name: 2. Déplacement vers Todo (Project v2)
+      - name: 2. Déplacement vers In Progress (Project v2)
         uses: leonsteinhaeuser/project-beta-automations@v2.2.1
         with:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
           organization: qa-test-automation-org   # ⚠️ METS LE NOM EXACT DE L’ORG
           project_id: 1               # ID interne
           resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "Todo"
+          status_value: "In Progress"
