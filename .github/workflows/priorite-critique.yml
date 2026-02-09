@@ -6,89 +6,37 @@ on:
 
 jobs:
   gestion-priorite:
-    # On s'assure que le job ne tourne que pour le label 'Critical'
     if: github.event.label.name == 'Critical' || contains(github.event.issue.labels.*.name, 'Critical')
     runs-on: ubuntu-latest
 
     permissions:
       issues: write
-      repository-projects: write
+      contents: read
 
     steps:
-     - name: Assignation et Mise à jour Projet
+      - name: 1. Assignation automatique et commentaire
         uses: actions/github-script@v7
         with:
-          # J'ai supprimé "_TOKEN" pour correspondre exactement à ton image
-          github-token: ${{ secrets.PROJECT_AUTOMATION }}
           script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const issueNumber = context.issue.number;
-            const issueNodeId = context.payload.issue.node_id;
-
-            // 1. Assignation de l'owner
             await github.rest.issues.addAssignees({
-              owner, repo, issue_number: issueNumber,
-              assignees: [owner]
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              assignees: [context.repo.owner]
             });
 
-            // 2. Commentaire
             await github.rest.issues.createComment({
-              owner, repo, issue_number: issueNumber,
-              body: "🚨 **Alerte Critique** : Issue assignée et mise à jour dans le projet."
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "🚨 **Alerte Critique** : Issue assignée automatiquement."
             });
 
-            // 3. Mise à jour Projet V2
-            const projectNumber = 1;
-            const orgName = "qa-test-automation-org";
-            
-            const query = `
-              query($org: String!, $number: Int!) {
-                organization(login: $org) {
-                  projectV2(number: $number) {
-                    id
-                    fields(first: 20) {
-                      nodes {
-                        ... on ProjectV2SingleSelectField {
-                          id name
-                          options { id name }
-                        }
-                      }
-                    }
-                  }
-                }
-              }`;
-
-            const projectData = await github.graphql(query, { org: orgName, number: projectNumber });
-            const project = projectData.organization.projectV2;
-            const statusField = project.fields.nodes.find(f => f.name === "Status");
-            const inProgressOption = statusField.options.find(o => o.name === "In Progress");
-
-            const addItemMutation = `
-              mutation($projectId: ID!, $contentId: ID!) {
-                addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
-                  item { id }
-                }
-              }`;
-
-            const itemData = await github.graphql(addItemMutation, {
-              projectId: project.id,
-              contentId: issueNodeId
-            });
-
-            const updateStatusMutation = `
-              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: $projectId, itemId: $itemId, fieldId: $fieldId,
-                  value: { singleSelectOptionId: $optionId }
-                }) { clientMutationId }
-              }`;
-
-            await github.graphql(updateStatusMutation, {
-              projectId: project.id,
-              itemId: itemData.addProjectV2ItemById.item.id,
-              fieldId: statusField.id,
-              optionId: inProgressOption.id
-            });
-            
-            console.log("Succès : Issue traitée et déplacée.");
+      - name: 2. Déplacement vers In Progress (Project v2)
+        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          organization: qa-test-automation-org   # ⚠️ METS LE NOM EXACT DE L’ORG
+          project_id: 1               # ID interne
+          resource_node_id: ${{ github.event.issue.node_id }}
+          status_value: "In Progress"
