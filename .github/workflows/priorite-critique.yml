@@ -6,37 +6,99 @@ on:
 
 jobs:
   gestion-priorite:
+    # On vérifie si le label 'Critical' est présent
     if: github.event.label.name == 'Critical' || contains(github.event.issue.labels.*.name, 'Critical')
     runs-on: ubuntu-latest
 
     permissions:
       issues: write
-      contents: read
+      repository-projects: write # Important pour les projets
 
     steps:
-      - name: 1. Assignation automatique et commentaire
+      - name: Assignation et Mise à jour Projet
         uses: actions/github-script@v7
         with:
+          # Utilise un secret nommé PROJECT_TOKEN si le GITHUB_TOKEN échoue
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
           script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.issue.number;
+            const issueNodeId = context.payload.issue.node_id;
+
+            // 1. Assignation de l'owner du repo
             await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              assignees: [context.repo.owner]
+              owner,
+              repo,
+              issue_number: issueNumber,
+              assignees: [owner]
             });
 
+            // 2. Ajout du commentaire
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: "🚨 **Alerte Critique** : Issue assignée automatiquement."
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body: "🚨 **Alerte Critique** : Issue assignée et déplacée dans 'In Progress'."
             });
 
-      - name: 2. Déplacement vers In Progress (Project v2)
-        uses: leonsteinhaeuser/project-beta-automations@v2.2.1
-        with:
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
-          organization: qa-test-automation-org   # ⚠️ METS LE NOM EXACT DE L’ORG
-          project_id: 1               # ID interne
-          resource_node_id: ${{ github.event.issue.node_id }}
-          status_value: "In Progress"
+            // 3. Logique GraphQL pour le Projet (Plus fiable)
+            // Remplace 1 par le vrai numéro de ton projet s'il est différent
+            const projectNumber = 1; 
+            
+            const query = `
+              query($org: String!, $number: Int!) {
+                organization(login: $org) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+            const projectData = await github.graphql(query, {
+              org: "qa-test-automation-org",
+              number: projectNumber
+            });
+
+            const project = projectData.organization.projectV2;
+            const statusField = project.fields.nodes.find(f => f.name === "Status");
+            const inProgressOption = statusField.options.find(o => o.name === "In Progress");
+
+            // On ajoute l'issue au projet (si pas déjà faite) et on change le statut
+            const addItemMutation = `
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+                  item { id }
+                }
+              }`;
+
+            const itemData = await github.graphql(addItemMutation, {
+              projectId: project.id,
+              contentId: issueNodeId
+            });
+
+            const updateStatusMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId,
+                  itemId: $itemId,
+                  fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) { clientMutationId }
+              }`;
+
+            await github.graphql(updateStatusMutation, {
+              projectId: project.id,
+              itemId: itemData.addProjectV2ItemById.item.id,
+              fieldId: statusField.id,
+              optionId: inProgressOption.id
+            });
