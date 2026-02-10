@@ -1,57 +1,45 @@
-name: Block Done label on parent issue if sub-issues not completed
+name: Block Done on parent if sub-issues not Done
 
 on:
   issues:
     types: [labeled]
 
 jobs:
-  prevent-invalid-done:
+  block-done:
     runs-on: ubuntu-latest
 
     permissions:
       issues: write
 
     steps:
-      - name: Prevent Done if sub-issues are not Done
-        uses: actions/github-script@v7
+      - uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issue = context.payload.issue;
-
-            // Vérifier si on a ajouté le label Done
             const addedLabel = context.payload.label?.name;
+
             if (addedLabel !== 'Done') return;
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            // Vérifier si l'issue a des sub-issues
-            const { data } = await github.graphql(`
-              query {
-                repository(owner: "${owner}", name: "${repo}") {
-                  issue(number: ${issue.number}) {
-                    subIssues(first: 50) {
-                      nodes {
-                        labels(first: 10) {
-                          nodes { name }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            `);
+            // Récupérer toutes les issues
+            const allIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', per_page: 100 }
+            );
 
-            const subIssues = data.repository.issue.subIssues.nodes;
+            const subIssues = allIssues.filter(i =>
+              i.parent && i.parent.number === issue.number
+            );
 
             if (subIssues.length === 0) return;
 
-            const allDone = subIssues.every(sub =>
-              sub.labels.nodes.some(label => label.name === 'Done')
+            const allDone = subIssues.every(i =>
+              i.labels.some(l => l.name === 'Done')
             );
 
-            // Si tous les sub-issues ne sont PAS Done → on retire le label Done
             if (!allDone) {
               await github.rest.issues.removeLabel({
                 owner,
@@ -64,6 +52,6 @@ jobs:
                 owner,
                 repo,
                 issue_number: issue.number,
-                body: "❌ Impossible de marquer cette issue comme **Done** tant que toutes les sub-issues ne sont pas terminées."
+                body: "❌ Impossible de passer cette issue à **Done** tant que toutes les sub-issues ne sont pas terminées."
               });
             }
