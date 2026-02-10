@@ -2,46 +2,68 @@ name: Auto close parent issue when all sub-issues are Done
 
 on:
   issues:
-    types: [edited, labeled, unlabeled]
+    types: [labeled, unlabeled, closed, reopened]
 
 jobs:
   auto-done:
     runs-on: ubuntu-latest
-
     permissions:
       issues: write
-      projects: read
 
     steps:
-      - uses: actions/github-script@v7
+      - name: Sync Parent Status
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const issue = context.payload.issue;
-            if (!issue.parent) return; // ce n’est pas une sub-issue
-
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const parentNumber = issue.parent.number;
+            const issueNumber = context.payload.issue.number;
 
-            // Récupérer toutes les issues du repo
-            const allIssues = await github.paginate(
-              github.rest.issues.listForRepo,
-              { owner, repo, state: 'open', per_page: 100 }
+            // 1. Récupérer le parent de l'issue actuelle via GraphQL
+            const getParentQuery = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $number) {
+                    parent {
+                      number
+                      subIssues(first: 50) {
+                        nodes {
+                          number
+                          labels(first: 10) {
+                            nodes { name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const data = await github.graphql(getParentQuery, { owner, repo, number: issueNumber });
+            const parent = data.repository.issue.parent;
+
+            // Si l'issue n'a pas de parent, on s'arrête
+            if (!parent) {
+              console.log("Cette issue n'est pas une sub-issue.");
+              return;
+            }
+
+            const parentNumber = parent.number;
+            const subIssues = parent.subIssues.nodes;
+
+            console.log(`Analyse des sub-issues pour le parent #${parentNumber}...`);
+
+            // 2. Vérifier si TOUTES les sub-issues sont "Done"
+            const allSubIssuesDone = subIssues.every(sub => 
+              sub.labels.nodes.some(l => l.name === 'Done')
             );
 
-            // Sub-issues = issues ayant ce parent
-            const subIssues = allIssues.filter(i =>
-              i.parent && i.parent.number === parentNumber
-            );
+            if (allSubIssuesDone) {
+              console.log(`Toutes les sub-issues de #${parentNumber} sont prêtes !`);
 
-            if (subIssues.length === 0) return;
-
-            const allDone = subIssues.every(i =>
-              i.labels.some(l => l.name === 'Done')
-            );
-
-            if (allDone) {
+              // 3. Ajouter le label 'Done' au parent
               await github.rest.issues.addLabels({
                 owner,
                 repo,
@@ -49,10 +71,12 @@ jobs:
                 labels: ['Done']
               });
 
+              // 4. Commentaire optionnel sur le parent
               await github.rest.issues.createComment({
-                owner,
-                repo,
+                owner, repo,
                 issue_number: parentNumber,
-                body: "✅ Toutes les sub-issues sont **Done**. L’issue parente est automatiquement clôturée."
+                body: "✅ Toutes les sub-issues sont terminées. Passage automatique de l'issue parente à **Done**."
               });
+            } else {
+              console.log("Certaines sub-issues ne sont pas encore 'Done'.");
             }
