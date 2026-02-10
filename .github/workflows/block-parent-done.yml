@@ -1,46 +1,33 @@
-name: Block Done Status if sub-issues not completed
+name: Block Close if sub-issues not completed
 
 on:
-  project_v2_item:
-    types: [edited, created]
+  issues:
+    types: [closed] # Se déclenche quand on ferme l'issue
 
 jobs:
-  block-status:
+  check-before-closing:
     runs-on: ubuntu-latest
-    # On ne lance le job que si le champ modifié est le "Status"
-    if: github.event.changes.field_value.field_name == 'Status'
-    
+    permissions:
+      issues: write
+
     steps:
-      - name: Check Sub-issues Status
+      - name: Verify sub-issues status
         uses: actions/github-script@v7
         with:
-          # Note: Un PAT est souvent requis pour modifier les projets v2
-          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }} 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const itemContentId = context.payload.project_v2_item.content_node_id;
-            const projectNodeId = context.payload.project_v2_item.project_node_id;
-            const itemId = context.payload.project_v2_item.node_id;
-            const newStatus = context.payload.changes.field_value.to;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.payload.issue.number;
 
-            if (newStatus !== 'Done') return;
-
-            // 1. Récupérer l'issue et ses sous-issues via GraphQL
             const query = `
-              query($id: ID!) {
-                node(id: $id) {
-                  ... on Issue {
-                    number
-                    repository { owner { login } name }
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $number) {
                     subIssues(first: 50) {
                       nodes {
                         number
-                        projectItems(first: 1) {
-                          nodes {
-                            fieldValueByName(name: "Status") {
-                              ... on ProjectV2ItemFieldSingleSelectValue { name }
-                            }
-                          }
-                        }
+                        state # 'OPEN' ou 'CLOSED'
                       }
                     }
                   }
@@ -48,35 +35,25 @@ jobs:
               }
             `;
 
-            const result = await github.graphql(query, { id: itemContentId });
-            const issue = result.node;
-            const subIssues = issue.subIssues.nodes;
+            const result = await github.graphql(query, { owner, repo, number: issueNumber });
+            const subIssues = result.repository.issue.subIssues.nodes;
 
-            if (subIssues.length === 0) return;
+            // On cherche les sub-issues qui sont encore 'OPEN'
+            const openSubIssues = subIssues.filter(sub => sub.state === 'OPEN');
 
-            // 2. Vérifier si des sous-issues ne sont pas en Status "Done"
-            const incomplete = subIssues.filter(sub => {
-              const status = sub.projectItems.nodes[0]?.fieldValueByName?.name;
-              return status !== 'Done';
-            });
-
-            if (incomplete.length > 0) {
-              console.log("Blocage : Sous-issues non terminées.");
-
-              // 3. Récupérer l'ID de l'option "In Progress" (ou autre) pour faire machine arrière
-              // Note: Tu dois adapter ce nom au nom de ta colonne d'attente
-              const revertStatusName = "In Progress"; 
-              
-              // Ici, on utilise une mutation GraphQL pour remettre le status à "In Progress"
-              // (Nécessite de trouver l'ID du champ et de l'option, 
-              // simplifié ici pour la logique de compréhension)
-              
-              await github.rest.issues.createComment({
-                owner: issue.repository.owner.login,
-                repo: issue.repository.name,
-                issue_number: issue.number,
-                body: `❌ **Status bloqué** : Impossible de passer en **Done** car les sub-issues suivantes sont incomplètes : ${incomplete.map(s => '#' + s.number).join(', ')}.`
+            if (openSubIssues.length > 0) {
+              // 1. Réouvrir l'issue
+              await github.rest.issues.update({
+                owner, repo,
+                issue_number: issueNumber,
+                state: 'open'
               });
-              
-              // Logique de 'revert' à implémenter selon la structure de ton projet
+
+              // 2. Commenter pour expliquer
+              const list = openSubIssues.map(s => `#${s.number}`).join(', ');
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: issueNumber,
+                body: `❌ **Fermeture refusée** : Les sous-tâches suivantes sont encore ouvertes : ${list}.`
+              });
             }
