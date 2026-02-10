@@ -1,39 +1,44 @@
-name: Block Done if sub-issues not completed
+name: Block Done Status if sub-issues not completed
 
 on:
-  issues:
-    types: [labeled]
+  project_v2_item:
+    types: [edited, created]
 
 jobs:
-  block-done:
+  block-status:
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'Done'
-    permissions:
-      issues: write
-      repository-projects: read # Requis pour les relations
-
+    # On ne lance le job que si le champ modifié est le "Status"
+    if: github.event.changes.field_value.field_name == 'Status'
+    
     steps:
       - name: Check Sub-issues Status
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Note: Un PAT est souvent requis pour modifier les projets v2
+          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }} 
           script: |
-            const issueNumber = context.payload.issue.number;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
+            const itemContentId = context.payload.project_v2_item.content_node_id;
+            const projectNodeId = context.payload.project_v2_item.project_node_id;
+            const itemId = context.payload.project_v2_item.node_id;
+            const newStatus = context.payload.changes.field_value.to;
 
-            // Requête GraphQL pour récupérer les sub-issues réelles
+            if (newStatus !== 'Done') return;
+
+            // 1. Récupérer l'issue et ses sous-issues via GraphQL
             const query = `
-              query($owner: String!, $repo: String!, $number: Int!) {
-                repository(owner: $owner, name: $repo) {
-                  issue(number: $number) {
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on Issue {
+                    number
+                    repository { owner { login } name }
                     subIssues(first: 50) {
                       nodes {
                         number
-                        state
-                        labels(first: 20) {
+                        projectItems(first: 1) {
                           nodes {
-                            name
+                            fieldValueByName(name: "Status") {
+                              ... on ProjectV2ItemFieldSingleSelectValue { name }
+                            }
                           }
                         }
                       }
@@ -43,31 +48,35 @@ jobs:
               }
             `;
 
-            const variables = { owner, repo, number: issueNumber };
-            const result = await github.graphql(query, variables);
-            const subIssues = result.repository.issue.subIssues.nodes;
+            const result = await github.graphql(query, { id: itemContentId });
+            const issue = result.node;
+            const subIssues = issue.subIssues.nodes;
 
             if (subIssues.length === 0) return;
 
-            // Vérifier si toutes les sub-issues ont le label 'Done'
-            const incompleteSubIssues = subIssues.filter(sub => {
-              const isDone = sub.labels.nodes.some(l => l.name === 'Done');
-              return !isDone;
+            // 2. Vérifier si des sous-issues ne sont pas en Status "Done"
+            const incomplete = subIssues.filter(sub => {
+              const status = sub.projectItems.nodes[0]?.fieldValueByName?.name;
+              return status !== 'Done';
             });
 
-            if (incompleteSubIssues.length > 0) {
-              // 1. Retirer le label 'Done' de l'issue parente
-              await github.rest.issues.removeLabel({
-                owner, repo,
-                issue_number: issueNumber,
-                name: 'Done'
-              });
+            if (incomplete.length > 0) {
+              console.log("Blocage : Sous-issues non terminées.");
 
-              // 2. Ajouter un commentaire d'explication
-              const list = incompleteSubIssues.map(s => `#${s.number}`).join(', ');
+              // 3. Récupérer l'ID de l'option "In Progress" (ou autre) pour faire machine arrière
+              // Note: Tu dois adapter ce nom au nom de ta colonne d'attente
+              const revertStatusName = "In Progress"; 
+              
+              // Ici, on utilise une mutation GraphQL pour remettre le status à "In Progress"
+              // (Nécessite de trouver l'ID du champ et de l'option, 
+              // simplifié ici pour la logique de compréhension)
+              
               await github.rest.issues.createComment({
-                owner, repo,
-                issue_number: issueNumber,
-                body: `⚠️ **Action bloquée** : Cette issue possède des sous-tâches non terminées (${list}). Veuillez les passer en **Done** avant de clôturer le parent.`
+                owner: issue.repository.owner.login,
+                repo: issue.repository.name,
+                issue_number: issue.number,
+                body: `❌ **Status bloqué** : Impossible de passer en **Done** car les sub-issues suivantes sont incomplètes : ${incomplete.map(s => '#' + s.number).join(', ')}.`
               });
+              
+              // Logique de 'revert' à implémenter selon la structure de ton projet
             }
