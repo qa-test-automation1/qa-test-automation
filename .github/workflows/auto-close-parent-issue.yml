@@ -1,16 +1,16 @@
 name: Auto close parent issue when all sub-issues are Done
 
-
 on:
   issues:
-    types: [labeled]
+    types: [edited, labeled, unlabeled]
 
 jobs:
-  block-done:
+  auto-done:
     runs-on: ubuntu-latest
 
     permissions:
       issues: write
+      projects: read
 
     steps:
       - uses: actions/github-script@v7
@@ -18,21 +18,21 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issue = context.payload.issue;
-            const addedLabel = context.payload.label?.name;
-
-            if (addedLabel !== 'Done') return;
+            if (!issue.parent) return; // ce n’est pas une sub-issue
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const parentNumber = issue.parent.number;
 
-            // Récupérer toutes les issues
+            // Récupérer toutes les issues du repo
             const allIssues = await github.paginate(
               github.rest.issues.listForRepo,
               { owner, repo, state: 'open', per_page: 100 }
             );
 
+            // Sub-issues = issues ayant ce parent
             const subIssues = allIssues.filter(i =>
-              i.parent && i.parent.number === issue.number
+              i.parent && i.parent.number === parentNumber
             );
 
             if (subIssues.length === 0) return;
@@ -41,18 +41,18 @@ jobs:
               i.labels.some(l => l.name === 'Done')
             );
 
-            if (!allDone) {
-              await github.rest.issues.removeLabel({
+            if (allDone) {
+              await github.rest.issues.addLabels({
                 owner,
                 repo,
-                issue_number: issue.number,
-                name: 'Done'
+                issue_number: parentNumber,
+                labels: ['Done']
               });
 
               await github.rest.issues.createComment({
                 owner,
                 repo,
-                issue_number: issue.number,
-                body: "❌ Impossible de passer cette issue à **Done** tant que toutes les sub-issues ne sont pas terminées."
+                issue_number: parentNumber,
+                body: "✅ Toutes les sub-issues sont **Done**. L’issue parente est automatiquement clôturée."
               });
             }
