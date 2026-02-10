@@ -1,0 +1,69 @@
+name: Block Done label on parent issue if sub-issues not completed
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  prevent-invalid-done:
+    runs-on: ubuntu-latest
+
+    permissions:
+      issues: write
+
+    steps:
+      - name: Prevent Done if sub-issues are not Done
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+
+            // Vérifier si on a ajouté le label Done
+            const addedLabel = context.payload.label?.name;
+            if (addedLabel !== 'Done') return;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Vérifier si l'issue a des sub-issues
+            const { data } = await github.graphql(`
+              query {
+                repository(owner: "${owner}", name: "${repo}") {
+                  issue(number: ${issue.number}) {
+                    subIssues(first: 50) {
+                      nodes {
+                        labels(first: 10) {
+                          nodes { name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `);
+
+            const subIssues = data.repository.issue.subIssues.nodes;
+
+            if (subIssues.length === 0) return;
+
+            const allDone = subIssues.every(sub =>
+              sub.labels.nodes.some(label => label.name === 'Done')
+            );
+
+            // Si tous les sub-issues ne sont PAS Done → on retire le label Done
+            if (!allDone) {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: issue.number,
+                name: 'Done'
+              });
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: "❌ Impossible de marquer cette issue comme **Done** tant que toutes les sub-issues ne sont pas terminées."
+              });
+            }
