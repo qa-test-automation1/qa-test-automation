@@ -25,32 +25,56 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            // Optionnel : Filtrer par milestone fermé
-            const milestoneTitle = context.payload.milestone ? context.payload.milestone.title : null;
+            // Vérifier si workflow déclenché par milestone fermé
+            const milestone = context.payload.milestone;
+            let milestoneNumber = null;
+            let milestoneTitle = null;
+
+            if (milestone) {
+              milestoneNumber = milestone.number;
+              milestoneTitle = milestone.title;
+              console.log(`Workflow déclenché par milestone: ${milestoneTitle} (#${milestoneNumber})`);
+            } else {
+              console.log("Workflow déclenché manuellement (workflow_dispatch)");
+            }
 
             // Récupérer toutes les issues fermées
-            const issues = await github.paginate(
-              github.rest.issues.listForRepo,
-              {
-                owner,
-                repo,
-                state: "closed",
-                per_page: 100
-              }
-            );
+            let issues = [];
+            if (milestoneNumber) {
+              // Filtrer par milestone number
+              issues = await github.paginate(
+                github.rest.issues.listForRepo,
+                {
+                  owner,
+                  repo,
+                  state: "closed",
+                  milestone: milestoneNumber,
+                  per_page: 100
+                }
+              );
+            } else {
+              // fallback pour workflow_dispatch manuel
+              issues = await github.paginate(
+                github.rest.issues.listForRepo,
+                {
+                  owner,
+                  repo,
+                  state: "closed",
+                  per_page: 100
+                }
+              );
+            }
 
-            // Filtrer par milestone si applicable
-            const filteredIssues = milestoneTitle 
-              ? issues.filter(issue => issue.milestone && issue.milestone.title === milestoneTitle)
-              : issues;
+            console.log(`Nombre d'issues détectées: ${issues.length}`);
 
+            // Compter Passed / Failed
             let passed = 0;
             let failed = 0;
             let passedIssues = [];
             let failedIssues = [];
 
-            filteredIssues.forEach(issue => {
-              const labels = issue.labels.map(l => l.name);
+            issues.forEach(issue => {
+              const labels = issue.labels.map(l => l.name.toLowerCase());
 
               if (labels.includes("test-pass")) {
                 passed++;
@@ -64,7 +88,6 @@ jobs:
 
             const total = passed + failed;
             const successRate = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
-
             const decision = successRate >= 80 ? "✅ Prêt pour production" : "❌ Non recommandé pour production";
 
             const report = `
@@ -94,20 +117,4 @@ jobs:
               title: `📊 Rapport de Campagne de Test ${milestoneTitle ? `- ${milestoneTitle}` : ''}`,
               body: report,
               labels: ["health-check"]
-            });
-
-            // Sauvegarder un fichier Markdown dans /reports
-            const fs = require('fs');
-            const path = `reports/rapport-${Date.now()}.md`;
-            fs.mkdirSync('reports', { recursive: true });
-            fs.writeFileSync(path, report);
-
-            // Commit et push le fichier
-            await github.rest.repos.createOrUpdateFileContents({
-              owner,
-              repo,
-              path: path,
-              message: `📄 Ajout rapport de campagne ${milestoneTitle || ""}`,
-              content: Buffer.from(report).toString('base64'),
-              branch: context.repo.default_branch
             });
