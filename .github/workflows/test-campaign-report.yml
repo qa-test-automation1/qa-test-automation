@@ -1,4 +1,4 @@
-name: Test Campaign Report
+name: Test Campaign Report Advanced
 
 on:
   workflow_dispatch:
@@ -14,6 +14,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Generate Campaign Report
         uses: actions/github-script@v7
         with:
@@ -21,6 +24,9 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+
+            // Optionnel : Filtrer par milestone fermé
+            const milestoneTitle = context.payload.milestone ? context.payload.milestone.title : null;
 
             // Récupérer toutes les issues fermées
             const issues = await github.paginate(
@@ -33,37 +39,75 @@ jobs:
               }
             );
 
+            // Filtrer par milestone si applicable
+            const filteredIssues = milestoneTitle 
+              ? issues.filter(issue => issue.milestone && issue.milestone.title === milestoneTitle)
+              : issues;
+
             let passed = 0;
             let failed = 0;
+            let passedIssues = [];
+            let failedIssues = [];
 
-            issues.forEach(issue => {
+            filteredIssues.forEach(issue => {
               const labels = issue.labels.map(l => l.name);
-              if (labels.includes("test-pass")) passed++;
-              if (labels.includes("test-fail")) failed++;
+
+              if (labels.includes("test-pass")) {
+                passed++;
+                passedIssues.push(`#${issue.number} ${issue.title}`);
+              }
+              if (labels.includes("test-fail")) {
+                failed++;
+                failedIssues.push(`#${issue.number} ${issue.title}`);
+              }
             });
 
             const total = passed + failed;
-            const successRate = total > 0 
-              ? ((passed / total) * 100).toFixed(2) 
-              : 0;
+            const successRate = total > 0 ? ((passed / total) * 100).toFixed(2) : 0;
+
+            const decision = successRate >= 80 ? "✅ Prêt pour production" : "❌ Non recommandé pour production";
 
             const report = `
-            # 📊 Rapport de Campagne de Test
+# 📊 Rapport de Campagne de Test ${milestoneTitle ? `- ${milestoneTitle}` : ''}
 
-            - ✅ Tests Passed : ${passed}
-            - ❌ Tests Failed : ${failed}
-            - 📦 Total exécutés : ${total}
-            - 🎯 Taux de réussite : ${successRate} %
+- ✅ Tests Passed : ${passed}
+${passedIssues.map(i => `  - ${i}`).join("\n")}
 
-            ---
+- ❌ Tests Failed : ${failed}
+${failedIssues.map(i => `  - ${i}`).join("\n")}
 
-            _Généré automatiquement par le système QA._
-            `;
+- 📦 Total exécutés : ${total}
+- 🎯 Taux de réussite : ${successRate} %
+- 📝 Recommandation : ${decision}
+
+---
+
+_Généré automatiquement par le système QA._
+`;
+
+            console.log(report);
 
             // Créer une issue rapport
             await github.rest.issues.create({
               owner,
               repo,
-              title: "📊 Rapport de Campagne de Test",
-              body: report
+              title: `📊 Rapport de Campagne de Test ${milestoneTitle ? `- ${milestoneTitle}` : ''}`,
+              body: report,
+              labels: ["health-check"]
+            });
+
+            // Sauvegarder un fichier Markdown dans /reports
+            const fs = require('fs');
+            const path = `reports/rapport-${Date.now()}.md`;
+            fs.mkdirSync('reports', { recursive: true });
+            fs.writeFileSync(path, report);
+
+            // Commit et push le fichier
+            await github.rest.repos.createOrUpdateFileContents({
+              owner,
+              repo,
+              path: path,
+              message: `📄 Ajout rapport de campagne ${milestoneTitle || ""}`,
+              content: Buffer.from(report).toString('base64'),
+              branch: context.repo.default_branch
             });
