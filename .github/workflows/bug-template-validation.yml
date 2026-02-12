@@ -13,39 +13,36 @@ jobs:
       contents: read
 
     steps:
-      - name: Validate Issue Template
+      - name: Validate Issue Fields
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const issue = context.payload.issue;
-            const issueBody = issue.body || "";
+            const body = issue.body || "";
             const issueNumber = issue.number;
 
-            const requiredSections = [
-              "### Étapes de reproduction",
-              "### Comportement attendu",
-              "### Logs"
+            const requiredFields = [
+              "Test Case associé",
+              "Description du bug",
+              "Étapes pour reproduire le bug",
+              "Comportement attendu",
+              "Sévérité"
             ];
 
-            let missingSections = [];
+            let missingFields = [];
 
-            for (const section of requiredSections) {
-              const regex = new RegExp(`${section}[\\s\\S]*?(?=###|$)`, "i");
-              const match = issueBody.match(regex);
-
-              if (!match || match[0].trim() === section) {
-                missingSections.push(section);
+            for (const field of requiredFields) {
+              if (!body.includes(field)) {
+                missingFields.push(field);
               }
             }
 
-            const hasNeedsInfoLabel = issue.labels.some(
-              label => label.name === "Needs Info"
-            );
+            const hasNeedsInfo = issue.labels.some(l => l.name === "Needs Info");
 
-            if (missingSections.length > 0) {
+            if (missingFields.length > 0) {
 
-              if (!hasNeedsInfoLabel) {
+              if (!hasNeedsInfo) {
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -58,28 +55,28 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                body: `⚠️ Merci de compléter les sections suivantes :
- 
-                ${missingSections.join("\n")}
+                body: `⚠️ Certaines informations obligatoires sont manquantes :
 
-                Un bug complet permet une prise en charge rapide par l'équipe QA.`
+                ${missingFields.join("\n")}
+
+                Merci de compléter le rapport avant traitement.`
               });
 
             } else {
 
-              if (hasNeedsInfoLabel) {
+              if (hasNeedsInfo) {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issueNumber,
                   name: "Needs Info"
                 });
-                
+
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issueNumber,
-                  body: "✅ Merci, le rapport est maintenant complet."
+                  body: "✅ Merci, le bug report est complet."
                 });
               }
             }
