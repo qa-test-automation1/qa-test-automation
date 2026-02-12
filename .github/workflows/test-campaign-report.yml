@@ -19,7 +19,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -39,7 +38,6 @@ jobs:
 
             issues.forEach(issue => {
               const labels = issue.labels.map(l => l.name);
-
               if (labels.includes("test-pass")) passed++;
               if (labels.includes("test-fail")) failed++;
             });
@@ -52,15 +50,15 @@ jobs:
             const report = `
             # 📊 Rapport de Campagne de Test
 
-            - ✅ Tests Passed : ${test-pass}
-            - ❌ Tests Failed : ${test-fail}
+            - ✅ Tests Passed : ${passed}
+            - ❌ Tests Failed : ${failed}
             - 📦 Total exécutés : ${total}
             - 🎯 Taux de réussite : ${successRate} %
 
             ---
 
             _Généré automatiquement par le système QA._
-             `;
+            `;
 
             // Créer une issue rapport
             await github.rest.issues.create({
