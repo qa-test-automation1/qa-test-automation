@@ -68,22 +68,22 @@ jobs:
             const decision = successRate >= 80 ? "✅ Prêt pour production" : "❌ Non recommandé pour production";
 
             const report = `
-# 📊 Rapport de Campagne de Test ${milestoneTitle ? `- ${milestoneTitle}` : ''}
+            # 📊 Rapport de Campagne de Test ${milestoneTitle ? `- ${milestoneTitle}` : ''}
 
-- ✅ Tests Passed : ${passed}
-${passedIssues.map(i => `  - ${i}`).join("\n")}
+            - ✅ Tests Passed : ${passed}
+            ${passedIssues.map(i => `  - ${i}`).join("\n")}
 
-- ❌ Tests Failed : ${failed}
-${failedIssues.map(i => `  - ${i}`).join("\n")}
+            - ❌ Tests Failed : ${failed}
+            ${failedIssues.map(i => `  - ${i}`).join("\n")}
 
-- 📦 Total exécutés : ${total}
-- 🎯 Taux de réussite : ${successRate} %
-- 📝 Recommandation : ${decision}
+            - 📦 Total exécutés : ${total}
+            - 🎯 Taux de réussite : ${successRate} %
+            - 📝 Recommandation : ${decision}
 
----
+            ---
 
-_Généré automatiquement par le système QA._
-`;
+            _Généré automatiquement par le système QA._
+            `;
 
             console.log(report);
 
