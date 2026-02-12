@@ -18,7 +18,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-
             const issue = context.payload.issue;
             const issueBody = issue.body || "";
             const issueNumber = issue.number;
@@ -44,7 +43,6 @@ jobs:
               label => label.name === "Needs Info"
             );
 
-            // Si sections manquantes
             if (missingSections.length > 0) {
 
               if (!hasNeedsInfoLabel) {
@@ -69,7 +67,6 @@ Un bug complet permet une prise en charge rapide par l'équipe QA.`
 
             } else {
 
-              // Si tout est bon → retirer le label
               if (hasNeedsInfoLabel) {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
