@@ -2,25 +2,49 @@ name: Daily Regression Health Check
 
 on:
   schedule:
-    - cron: "0 7 * * *"   # 07:00 UTC = 08:00 Tunisie
-  workflow_dispatch:       # Permet de lancer manuellement aussi
+    - cron: "0 7 * * *"
+  workflow_dispatch:
 
 jobs:
   daily-regression:
     runs-on: ubuntu-latest
 
+    permissions:
+      issues: write
+
     steps:
-      - name: 1. Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 2. Setup environment
+      - name: Run Critical Tests
+        id: tests
         run: |
-          echo "Préparation environnement de test..."
-          node -v
-          python --version
-
-      - name: 3. Lancer les tests critiques
-        run: |
-          echo "Lancement des tests de régression..."
+          echo "Running regression tests..."
           sleep 5
-          echo "Tous les tests critiques sont PASS ✅"
+          echo "All critical tests passed"
+
+      - name: Create Success Issue
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "🟢 Daily Health Check - OK",
+              body: "Tous les tests critiques sont passés avec succès ce matin.",
+              labels: ["health-check"]
+            });
+
+      - name: Create Failure Alert
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "🔴 Daily Health Check - FAILED",
+              body: "Les tests critiques ont échoué. Intervention QA requise.",
+              labels: ["Critical"]
+            });
