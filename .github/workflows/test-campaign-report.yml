@@ -40,8 +40,8 @@ jobs:
             issues.forEach(issue => {
               const labels = issue.labels.map(l => l.name);
 
-              if (labels.includes("Passed")) passed++;
-              if (labels.includes("Failed")) failed++;
+              if (labels.includes("test-pass")) passed++;
+              if (labels.includes("test-fail")) failed++;
             });
 
             const total = passed + failed;
@@ -52,8 +52,8 @@ jobs:
             const report = `
             # 📊 Rapport de Campagne de Test
 
-            - ✅ Tests Passed : ${passed}
-            - ❌ Tests Failed : ${failed}
+            - ✅ Tests Passed : ${test-pass}
+            - ❌ Tests Failed : ${test-fail}
             - 📦 Total exécutés : ${total}
             - 🎯 Taux de réussite : ${successRate} %
 
