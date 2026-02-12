@@ -59,10 +59,10 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: issueNumber,
                 body: `⚠️ Merci de compléter les sections suivantes :
+ 
+                ${missingSections.join("\n")}
 
-${missingSections.join("\n")}
-
-Un bug complet permet une prise en charge rapide par l'équipe QA.`
+                Un bug complet permet une prise en charge rapide par l'équipe QA.`
               });
 
             } else {
@@ -74,7 +74,7 @@ Un bug complet permet une prise en charge rapide par l'équipe QA.`
                   issue_number: issueNumber,
                   name: "Needs Info"
                 });
-
+                
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
